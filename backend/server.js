@@ -24,12 +24,22 @@ app.get("/", (req, res) => {
   });
 });
 
-app.get("/api/health", (req, res) => {
-  res.json({
-    success: true,
-    message: "Manufacturing Compliance API is available",
-    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected"
-  });
+app.get("/api/health", async (req, res) => {
+  try {
+    await connectDB();
+    res.json({
+      success: true,
+      message: "Manufacturing Compliance API is available",
+      database: "connected"
+    });
+  } catch (error) {
+    console.error("Health check database connection failed:", error.message);
+    res.status(503).json({
+      success: false,
+      message: "Database unavailable. Configure MONGO_URI in the Vercel project and allow the deployment to connect in MongoDB Atlas Network Access.",
+      database: "disconnected"
+    });
+  }
 });
 
 app.use("/api", async (req, res, next) => {
