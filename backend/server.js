@@ -17,6 +17,23 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const getDatabaseFailureReason = (error) => {
+  if (!process.env.MONGO_URI?.trim()) return "MONGO_URI_MISSING";
+
+  const message = `${error?.name || ""} ${error?.message || ""}`.toLowerCase();
+  if (error?.code === 18 || /authentication failed|bad auth/.test(message)) {
+    return "AUTHENTICATION_FAILED_CHECK_DATABASE_USERNAME_AND_PASSWORD";
+  }
+  if (/querysrv|enotfound|dns/.test(message)) return "MONGO_HOST_DNS_LOOKUP_FAILED";
+  if (/invalid scheme|invalid connection string|uri must begin/.test(message)) {
+    return "INVALID_MONGO_URI_FORMAT";
+  }
+  if (/timed out|server selection|etimedout|econnrefused|network/.test(message)) {
+    return "ATLAS_UNREACHABLE_CHECK_NETWORK_ACCESS";
+  }
+  return "MONGODB_CONNECTION_FAILED_CHECK_URI_AND_ATLAS_SETTINGS";
+};
+
 app.get("/", (req, res) => {
   res.json({
     success: true,
@@ -33,11 +50,13 @@ app.get("/api/health", async (req, res) => {
       database: "connected"
     });
   } catch (error) {
-    console.error("Health check database connection failed:", error.message);
+    const reason = getDatabaseFailureReason(error);
+    console.error("Health check database connection failed:", reason);
     res.status(503).json({
       success: false,
       message: "Database unavailable. Configure MONGO_URI in the Vercel project and allow the deployment to connect in MongoDB Atlas Network Access.",
-      database: "disconnected"
+      database: "disconnected",
+      reason
     });
   }
 });
@@ -47,10 +66,12 @@ app.use("/api", async (req, res, next) => {
     await connectDB();
     next();
   } catch (error) {
-    console.error("MongoDB connection failed:", error.message);
+    const reason = getDatabaseFailureReason(error);
+    console.error("MongoDB connection failed:", reason);
     res.status(503).json({
       success: false,
-      message: "Database unavailable. Check the MONGO_URI and MongoDB Atlas network access settings."
+      message: "Database unavailable. Check the MONGO_URI and MongoDB Atlas network access settings.",
+      reason
     });
   }
 });
