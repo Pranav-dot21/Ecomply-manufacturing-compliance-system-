@@ -8,6 +8,7 @@ const pollutionRoutes = require("./routes/pollutionRoutes");
 const inspectionRoutes = require("./routes/inspectionRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
+const mongoose = require("mongoose");
 
 dotenv.config();
 
@@ -15,14 +16,6 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-
-// Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/emissions", emissionRoutes);
-app.use("/api/pollutions", pollutionRoutes);
-app.use("/api/inspections", inspectionRoutes);
-app.use("/api/reports", reportRoutes);
-app.use("/api/dashboard", dashboardRoutes);
 
 app.get("/", (req, res) => {
   res.json({
@@ -34,9 +27,31 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     success: true,
-    message: "Frontend connected to backend successfully"
+    message: "Manufacturing Compliance API is available",
+    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected"
   });
 });
+
+app.use("/api", async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error("MongoDB connection failed:", error.message);
+    res.status(503).json({
+      success: false,
+      message: "Database unavailable. Check the MONGO_URI and MongoDB Atlas network access settings."
+    });
+  }
+});
+
+// Routes
+app.use("/api/auth", authRoutes);
+app.use("/api/emissions", emissionRoutes);
+app.use("/api/pollutions", pollutionRoutes);
+app.use("/api/inspections", inspectionRoutes);
+app.use("/api/reports", reportRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 // Seed route - POST /api/seed
 app.post("/api/seed", async (req, res) => {
@@ -121,12 +136,17 @@ app.post("/api/seed", async (req, res) => {
 
 const PORT = process.env.PORT && process.env.PORT !== '0' ? parseInt(process.env.PORT) : 5000;
 
-const startServer = async () => {
-  await connectDB();
+if (require.main === module) {
+  connectDB()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`Server running at http://localhost:${PORT}`);
+      });
+    })
+    .catch((error) => {
+      console.error("MongoDB connection failed:", error.message);
+      process.exitCode = 1;
+    });
+}
 
-  app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
-  });
-};
-
-startServer();
+module.exports = app;
