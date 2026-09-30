@@ -14,6 +14,7 @@ const connectDB = async () => {
   if (!connectionPromise) {
     connectionPromise = mongoose
       .connect(process.env.MONGO_URI, {
+        dbName: "ecomply",
         serverSelectionTimeoutMS: 8000,
         connectTimeoutMS: 8000,
         socketTimeoutMS: 20000,
