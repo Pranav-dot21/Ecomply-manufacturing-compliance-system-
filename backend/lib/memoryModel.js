@@ -4,6 +4,22 @@ const models = new Map();
 const clone = (value) => (value == null ? value : structuredClone(value));
 const getPath = (object, path) => path.split(".").reduce((value, key) => value?.[key], object);
 const comparable = (value) => (value instanceof Date ? value.getTime() : String(value));
+const dateFields = new Set([
+  "recordedAt", "scheduledDate", "completedDate", "nextInspectionDate",
+  "dueDate", "submittedDate", "approvedDate", "createdAt", "updatedAt",
+]);
+
+function normalizeDates(value, parentKey = "") {
+  if (Array.isArray(value)) return value.map((item) => normalizeDates(item, parentKey));
+  if (!value || typeof value !== "object" || value instanceof Date) return value;
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => {
+    if ((dateFields.has(key) || (parentKey === "reportingPeriod" && ["from", "to"].includes(key))) && item != null) {
+      const date = item instanceof Date ? item : new Date(item);
+      return [key, Number.isNaN(date.getTime()) ? item : date];
+    }
+    return [key, normalizeDates(item, key)];
+  }));
+}
 
 function matches(document, filter = {}) {
   return Object.entries(filter).every(([path, expected]) => {
@@ -222,7 +238,7 @@ function createModel(name, { defaults = {}, validate = () => {}, beforeSave = (r
 
     static async create(input) {
       const now = new Date();
-      const provided = Object.fromEntries(Object.entries(clone(input)).filter(([, value]) => value !== undefined));
+      const provided = Object.fromEntries(Object.entries(normalizeDates(input)).filter(([, value]) => value !== undefined));
       const record = { ...Object.fromEntries(Object.entries(defaults).map(([key, value]) => [key, typeof value === "function" ? value() : clone(value)])), ...provided };
       record._id = record._id || crypto.randomBytes(12).toString("hex");
       record.createdAt = record.createdAt || now;
@@ -253,7 +269,7 @@ function createModel(name, { defaults = {}, validate = () => {}, beforeSave = (r
       return new MemoryQuery(async () => {
         const current = records.get(String(id));
         if (!current) return null;
-        const changes = update?.$set || update;
+        const changes = normalizeDates(update?.$set || update);
         const record = { ...clone(current), ...clone(changes), _id: current._id, updatedAt: new Date() };
         if (options.runValidators) validate(record);
         await beforeSave(record);

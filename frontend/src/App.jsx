@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import { ThemeProvider, CssBaseline } from "@mui/material";
+import { ThemeProvider, CssBaseline, Alert } from "@mui/material";
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { ThemeModeProvider, useThemeMode } from "./context/ThemeContext";
@@ -31,6 +31,9 @@ function ThemedApp() {
   return (
     <ThemeProvider theme={getAppTheme(mode)}>
       <CssBaseline />
+      <Alert severity="warning" icon={false} sx={{ borderRadius: 0, justifyContent: "center" }}>
+        Demo mode: data is temporary, can be lost on restart, and may differ between Vercel instances. Do not use for production compliance records.
+      </Alert>
       <LocalizationProvider dateAdapter={AdapterDayjs}>
         <AuthProvider>
           <Router>

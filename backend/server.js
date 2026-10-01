@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
+const crypto = require("crypto");
 const authRoutes = require("./routes/authRoutes");
 const emissionRoutes = require("./routes/emissionRoutes");
 const pollutionRoutes = require("./routes/pollutionRoutes");
@@ -9,6 +10,12 @@ const reportRoutes = require("./routes/reportRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 
 dotenv.config();
+
+// For the disposable in-memory demo, use an instance-local signing secret if
+// Vercel's JWT_SECRET is not set. Configure JWT_SECRET for stable sessions.
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = crypto.randomBytes(32).toString("hex");
+}
 
 const app = express();
 
@@ -120,6 +127,21 @@ app.post("/api/seed", async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT && process.env.PORT !== '0' ? parseInt(process.env.PORT) : 5000;\r\n\r\napp.get("/api/demo/status", (_req, res) => {\r\n  res.json({ success: true, storage: "in-memory", persistent: false, notice: "Demo data is temporary and may disappear when this server instance is recycled." });\r\n});\r\n\r\nif (require.main === module) {\r\n  app.listen(PORT, () => {\r\n    console.log(`Server running at http://localhost:${PORT} (in-memory demo storage)`);\r\n  });\r\n}
+const PORT = process.env.PORT && process.env.PORT !== '0' ? parseInt(process.env.PORT) : 5000;
+
+app.get("/api/demo/status", (_req, res) => {
+  res.json({
+    success: true,
+    storage: "in-memory",
+    persistent: false,
+    notice: "Demo data is temporary and may disappear when this server instance is recycled."
+  });
+});
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT} (in-memory demo storage)`);
+  });
+}
 
 module.exports = app;
