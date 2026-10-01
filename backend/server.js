@@ -1,14 +1,12 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
-const connectDB = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
 const emissionRoutes = require("./routes/emissionRoutes");
 const pollutionRoutes = require("./routes/pollutionRoutes");
 const inspectionRoutes = require("./routes/inspectionRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
-const mongoose = require("mongoose");
 
 dotenv.config();
 
@@ -17,23 +15,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const getDatabaseFailureReason = (error) => {
-  if (!process.env.MONGO_URI?.trim()) return "MONGO_URI_MISSING";
-
-  const message = `${error?.name || ""} ${error?.message || ""}`.toLowerCase();
-  if (error?.code === 18 || /authentication failed|bad auth/.test(message)) {
-    return "AUTHENTICATION_FAILED_CHECK_DATABASE_USERNAME_AND_PASSWORD";
-  }
-  if (/querysrv|enotfound|dns/.test(message)) return "MONGO_HOST_DNS_LOOKUP_FAILED";
-  if (/invalid scheme|invalid connection string|uri must begin/.test(message)) {
-    return "INVALID_MONGO_URI_FORMAT";
-  }
-  if (/timed out|server selection|etimedout|econnrefused|network/.test(message)) {
-    return "ATLAS_UNREACHABLE_CHECK_NETWORK_ACCESS";
-  }
-  return "MONGODB_CONNECTION_FAILED_CHECK_URI_AND_ATLAS_SETTINGS";
-};
-
 app.get("/", (req, res) => {
   res.json({
     success: true,
@@ -41,39 +22,14 @@ app.get("/", (req, res) => {
   });
 });
 
-app.get("/api/health", async (req, res) => {
-  try {
-    await connectDB();
-    res.json({
-      success: true,
-      message: "Manufacturing Compliance API is available",
-      database: "connected"
-    });
-  } catch (error) {
-    const reason = getDatabaseFailureReason(error);
-    console.error("Health check database connection failed:", reason);
-    res.status(503).json({
-      success: false,
-      message: "Database unavailable. Configure MONGO_URI in the Vercel project and allow the deployment to connect in MongoDB Atlas Network Access.",
-      database: "disconnected",
-      reason
-    });
-  }
-});
-
-app.use("/api", async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (error) {
-    const reason = getDatabaseFailureReason(error);
-    console.error("MongoDB connection failed:", reason);
-    res.status(503).json({
-      success: false,
-      message: "Database unavailable. Check the MONGO_URI and MongoDB Atlas network access settings.",
-      reason
-    });
-  }
+app.get("/api/health", (req, res) => {
+  res.json({
+    success: true,
+    message: "Manufacturing Compliance API is available",
+    storage: "in-memory",
+    persistent: false,
+    warning: "Demo mode: records can be lost on server restarts and are not shared between server instances."
+  });
 });
 
 // Routes
@@ -87,7 +43,6 @@ app.use("/api/dashboard", dashboardRoutes);
 // Seed route - POST /api/seed
 app.post("/api/seed", async (req, res) => {
   try {
-    const mongoose = require("mongoose");
     const Emission = require("./models/Emission");
     const Pollution = require("./models/Pollution");
     const Inspection = require("./models/Inspection");
@@ -165,19 +120,6 @@ app.post("/api/seed", async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT && process.env.PORT !== '0' ? parseInt(process.env.PORT) : 5000;
-
-if (require.main === module) {
-  connectDB()
-    .then(() => {
-      app.listen(PORT, () => {
-        console.log(`Server running at http://localhost:${PORT}`);
-      });
-    })
-    .catch((error) => {
-      console.error("MongoDB connection failed:", error.message);
-      process.exitCode = 1;
-    });
-}
+const PORT = process.env.PORT && process.env.PORT !== '0' ? parseInt(process.env.PORT) : 5000;\r\n\r\napp.get("/api/demo/status", (_req, res) => {\r\n  res.json({ success: true, storage: "in-memory", persistent: false, notice: "Demo data is temporary and may disappear when this server instance is recycled." });\r\n});\r\n\r\nif (require.main === module) {\r\n  app.listen(PORT, () => {\r\n    console.log(`Server running at http://localhost:${PORT} (in-memory demo storage)`);\r\n  });\r\n}
 
 module.exports = app;
